@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Computer Architecture Explorer</title>
+<style>
+  /* Updated colors */
+  body { margin:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#ffffff; color:#1a1a2e; }
+  header { background:#ffffff; padding:1rem; text-align:center; }
+  header h1 { margin:0; color:#4da6ff; font-size:2rem; letter-spacing:1px; }
+  section { margin:2rem auto; padding:1.5rem; max-width:1000px; background:#e6f2ff; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.2);}
+  h2 { color:#4da6ff; margin-bottom:12px; }
+  .unit-btn { background:#ffffff; padding:12px; margin:8px; border-radius:10px; cursor:pointer; border:1px solid #4da6ff; transition: transform 0.2s; display:inline-block; }
+  .unit-btn:hover { transform: translateY(-4px); }
+  .unit-details { margin-top:12px; background:#f0f8ff; padding:12px; border-radius:8px; }
+  .muted { color:#555; font-size:13px; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+  input, select { padding:6px 8px; border-radius:6px; border:1px solid #4da6ff; background:#ffffff; color:#1a1a2e; }
+  button { padding:6px 12px; border-radius:6px; border:none; background:#4da6ff; color:#fff; cursor:pointer; }
+  button:hover { opacity:0.85; }
+  pre { background:#f0f8ff; padding:12px; border-radius:8px; overflow:auto; color:#1a1a2e; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>Computer Architecture Explorer</h1>
+<div class="muted">Interactive simulation of CPU, Memory, ALU, and I/O units</div>
+</header>
+
+<!-- Functional Units -->
+<section>
+<h2>Functional Units Explorer</h2>
+<div id="units"></div>
+<div id="unit-details" class="unit-details"></div>
+</section>
+
+<!-- Von Neumann Architecture -->
+<section>
+<h2>Von Neumann Architecture Visualizer</h2>
+<svg id="vnm" width="720" height="260" viewBox="0 0 720 260">
+  <rect x="20" y="30" width="140" height="200" rx="8" fill="#ffffff" stroke="#4da6ff"/>
+  <text x="90" y="50" text-anchor="middle" font-size="12">Memory</text>
+  <rect x="220" y="20" width="320" height="220" rx="12" fill="#f0f8ff" stroke="#4da6ff"/>
+  <text x="380" y="40" text-anchor="middle" font-size="12">CPU</text>
+  <rect x="240" y="60" width="120" height="80" rx="8" fill="#ffffff" stroke="#4da6ff"/>
+  <text x="300" y="95" text-anchor="middle" font-size="11">Control Unit</text>
+  <rect x="400" y="60" width="120" height="80" rx="8" fill="#ffffff" stroke="#4da6ff"/>
+  <text x="460" y="95" text-anchor="middle" font-size="11">ALU</text>
+  <rect x="280" y="150" width="80" height="60" rx="8" fill="#ffffff" stroke="#4da6ff"/>
+  <text x="320" y="175" text-anchor="middle" font-size="11">Registers</text>
+  <line id="bus-mem-cpu" x1="160" y1="120" x2="220" y2="120" stroke="#4da6ff" stroke-width="3" stroke-linecap="round" opacity="0.25"/>
+  <line id="bus-reg-alu" x1="360" y1="150" x2="400" y2="120" stroke="#4da6ff" stroke-width="3" stroke-linecap="round" opacity="0.25"/>
+  <circle id="token" cx="160" cy="120" r="8" fill="#4da6ff" opacity="0" />
+</svg>
+<div class="controls">
+<button onclick="vStep(-1)">◀ Prev</button>
+<button onclick="vPlayToggle()" id="vplay">▶ Play</button>
+<button onclick="vStep(1)">Next ▶</button>
+<div class="muted">Step: <span id="vstepnum">0</span>/6</div>
+</div>
+<div id="vstepdesc" class="muted"></div>
+</section>
+
+<!-- Floating Point & Bitwise -->
+<section>
+<h2>Floating-Point & Bitwise Lab</h2>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap">
+<div style="flex:1 1 320px">
+<h3>8-bit Custom Float ⇄ Decimal</h3>
+<div class="controls">
+<input id="dec-input" type="number" step="any" placeholder="Decimal (e.g., -3.25)" />
+<button onclick="convertCustomFloat()">Convert →</button>
+</div>
+<div id="custom-result" style="margin-top:8px"></div>
+</div>
+</div>
+
+<hr style="margin:12px 0;border:none;border-top:1px solid #4da6ff" />
+
+<div>
+<h3>Bitwise Operations</h3>
+<div class="controls">
+<input id="bin-a" type="text" placeholder="Binary A (e.g., 101101)" />
+<input id="bin-b" type="text" placeholder="Binary B (for AND/OR/XOR)" />
+<select id="bit-op"><option>AND</option><option>OR</option><option>XOR</option><option>NOT A</option><option>LSHIFT A</option><option>RSHIFT A</option></select>
+<input id="shift-amt" type="number" placeholder="shift" style="width:80px" />
+<button onclick="doBitwise()">Run</button>
+</div>
+<div id="bitwise-out" style="margin-top:8px"></div>
+</div>
+</section>
+
+<script>
+/* Functional Units Data */
+const units = [
+{id:'input',title:'Input Unit',desc:'Receives data from external devices.',examples:['Keyboard','Mouse','Scanner']},
+{id:'output',title:'Output Unit',desc:'Provides results from the computer to external devices.',examples:['Monitor','Printer']},
+{id:'alu',title:'ALU',desc:'Performs arithmetic and logical operations.',examples:['Add','Sub','AND','OR']},
+{id:'control',title:'Control Unit',desc:'Controls and coordinates CPU operations.',examples:['Instruction decode','Signal generation']},
+{id:'memory',title:'Memory Unit',desc:'Stores data and instructions.',examples:['RAM','ROM','Cache']}
+];
+
+const unitsEl = document.getElementById('units');
+units.forEach(u=>{
+  const d=document.createElement('div');
+  d.className='unit-btn';
+  d.innerHTML=`<strong>${u.title}</strong><div class="muted">Click to explore</div>`;
+  d.onclick=()=>showUnit(u);
+  unitsEl.appendChild(d);
+});
+
+function showUnit(u){
+  document.getElementById('unit-details').innerHTML=`<h3>${u.title}</h3><p>${u.desc}</p><ul>${u.examples.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+}
+
+// ===== Floating Point 8-bit =====
+function convertCustomFloat(){
+  const dec=parseFloat(document.getElementById('dec-input').value);
+  if(isNaN(dec)){ document.getElementById('custom-result').innerText='Enter a valid number'; return;}
+  const sign=dec<0?1:0;
+  let absVal=Math.abs(dec);
+  let exponent=0;
+  if(absVal!==0){while(absVal>=2){absVal/=2;exponent++;} while(absVal<1){absVal*=2;exponent--;}}
+  let biasedExp=exponent+7;if(biasedExp<0)biasedExp=0;if(biasedExp>15)biasedExp=15;
+  let mantissa=Math.floor((absVal-1)*8);
+  const bin=`${sign}${biasedExp.toString(2).padStart(4,'0')}${mantissa.toString(2).padStart(3,'0')}`;
+  document.getElementById('custom-result').innerText=`8-bit float: ${bin}`;
+}
+
+// ===== Bitwise Operations =====
+function doBitwise(){
+  const a=document.getElementById('bin-a').value.trim();
+  const b=document.getElementById('bin-b').value.trim();
+  const op=document.getElementById('bit-op').value;
+  const shift=parseInt(document.getElementById('shift-amt').value)||0;
+  if(!/^[01]+$/.test(a) || (['AND','OR','XOR'].includes(op) && !/^[01]+$/.test(b))){
+    document.getElementById('bitwise-out').innerText='Enter valid binary numbers';return;
+  }
+  const aNum=parseInt(a,2),bNum=parseInt(b||'0',2);
+  let res=0;
+  switch(op){
+    case 'AND':res=aNum&bNum;break;
+    case 'OR':res=aNum|bNum;break;
+    case 'XOR':res=aNum^bNum;break;
+    case 'NOT A':res=~aNum;break;
+    case 'LSHIFT A':res=aNum<<shift;break;
+    case 'RSHIFT A':res=aNum>>shift;break;
+  }
+  document.getElementById('bitwise-out').innerText=`Result: ${res.toString(2)}`;
+}
+</script>
+
+</body>
+</html>
